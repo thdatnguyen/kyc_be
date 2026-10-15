@@ -1,0 +1,39 @@
+# ---- OS / editor ----
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# ---- Node (kyc_be) ----
+node_modules/
+dist/
+build/
+coverage/
+*.log
+logs/
+.env
+.env.local
+.env.*.local
+
+# Real secrets (Cloudinary keys etc.) — gitignored, never committed.
+dev.env
+
+# Local storage fallback (when Cloudinary keys are absent)
+uploads/
+
+# ---- Flutter (kyc_mobile) ----
+kyc_mobile/.dart_tool/
+kyc_mobile/build/
+kyc_mobile/.flutter-plugins
+kyc_mobile/.flutter-plugins-dependencies
+kyc_mobile/.packages
+kyc_mobile/ios/Pods/
+kyc_mobile/ios/.symlinks/
+kyc_mobile/ios/Flutter/ephemeral/
+kyc_mobile/android/.gradle/
+kyc_mobile/android/local.properties
+kyc_mobile/android/key.properties
+
+# ---- Secrets (never commit real keys) ----
+*.pem
+*.key

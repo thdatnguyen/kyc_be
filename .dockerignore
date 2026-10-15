@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+coverage
+logs
+uploads
+.env
+*.log
+.git
+.github
+src/__tests__
+docs
