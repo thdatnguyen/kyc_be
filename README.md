@@ -1,8 +1,8 @@
 # kyc_be — KYC Onboarding Backend
 
 Node.js + Express + TypeScript + MongoDB REST API for the KYC onboarding flow.
-See the root [`README.md`](../README.md) for the shared domain model and
-[`docs/assumptions.md`](../docs/assumptions.md) for every decision and its rationale.
+See [`CONTEXT.md`](CONTEXT.md) for the shared domain model and
+[`docs/assumptions.md`](docs/assumptions.md) for every decision and its rationale.
 
 ## Stack
 
@@ -11,7 +11,7 @@ See the root [`README.md`](../README.md) for the shared domain model and
 - **Auth:** JWT dual-token (short access + rotating refresh), bcrypt, token blacklist
 - **Validation:** Zod at the API boundary
 - **Storage:** Cloudinary (private, signed URLs) with a local-disk fallback
-- **Face match:** `@vladmandic/human` + `@tensorflow/tfjs-node` (server-authoritative)
+- **Face match:** `@vladmandic/human` (Node+WASM build) + `@tensorflow/tfjs` (server-authoritative)
 - **Docs:** Swagger/OpenAPI (`/api-docs`)
 
 ## Run locally
@@ -19,7 +19,6 @@ See the root [`README.md`](../README.md) for the shared domain model and
 ### Option A — Docker Compose (recommended, zero local deps)
 
 ```bash
-cd kyc_be
 cp dev.env.example dev.env    # create the gitignored env file
 docker compose up --build
 ```
@@ -38,7 +37,6 @@ docker compose up --build
 ### Option B — Bare Node (dev)
 
 ```bash
-cd kyc_be
 cp .env.example .env          # set PORT=5001 and adjust MONGODB_URI if needed
 npm install
 npm run dev                   # nodemon + ts-node, hot reload
