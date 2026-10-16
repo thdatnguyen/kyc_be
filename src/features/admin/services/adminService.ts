@@ -18,10 +18,16 @@ export async function getReviewDetails(submissionId: string) {
   if (!submission) throw notFound('Submission not found');
 
   const storage = getStorage();
-  const documentUrl = await storage.getSignedUrl(submission.document.imagePublicId);
+  // A document may hold multiple images (National ID front + back), stored as a
+  // comma-separated list of publicIds.
+  const documentIds = submission.document.imagePublicId
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const documentUrls = await Promise.all(documentIds.map((id) => storage.getSignedUrl(id)));
   const selfieUrl = await storage.getSignedUrl(submission.selfie.imagePublicId);
 
-  return { submission: submission.toJSON(), media: { documentUrl, selfieUrl } };
+  return { submission: submission.toJSON(), media: { documentUrls, selfieUrl } };
 }
 
 export async function reviewSubmission(
