@@ -9,10 +9,11 @@ type HumanInstance = any;
 
 let humanPromise: Promise<HumanInstance> | null = null;
 
+const nodeRequire = createRequire(__filename);
+
 // The `@vladmandic/human` `exports` map doesn't expose the `.js` subpaths, so
 // resolve the Node+WASM build by its on-disk path (bypasses exports resolution).
 // This avoids the native `tfjs-node` binding that segfaults on Railway / Apple Silicon.
-const nodeRequire = createRequire(__filename);
 const humanWasmPath = path.join(
   path.dirname(nodeRequire.resolve('@vladmandic/human')),
   'human.node-wasm.js',
@@ -20,11 +21,12 @@ const humanWasmPath = path.join(
 // Local path to the WASM backend's `.wasm` binaries (read from disk, not CDN).
 const wasmPath = path.dirname(nodeRequire.resolve('@tensorflow/tfjs-backend-wasm')) + path.sep;
 
+// Pure-JS image decoders (JPEG + PNG — the formats the mobile app uploads).
+const jpeg = nodeRequire('jpeg-js') as any;
+const { PNG } = nodeRequire('pngjs') as any;
+
 /**
- * Lazily load and cache the Human model. Uses the Node+WASM build
- * (`human.node-wasm.js`) so there is NO native C++ binary — this avoids the
- * tfjs-node segfault/arch-mismatch that crashes containers on Railway and
- * Apple Silicon. Falls back to graceful NEEDS_REVIEW if it can't initialise.
+ * Lazily load and cache the Human model (Node+WASM build — no native binary).
  */
 async function getHuman(): Promise<HumanInstance> {
   if (!humanPromise) {
@@ -65,24 +67,67 @@ export async function compareFaces(selfie: Buffer, document: Buffer): Promise<Fa
 
   try {
     const human = await getHuman();
-    const [selfieResult, docResult] = await Promise.all([
-      human.detect(selfie),
-      human.detect(document),
-    ]);
+    const selfieTensor = bufferToTensor(selfie);
+    const documentTensor = bufferToTensor(document);
 
-    const selfieEmbedding = extractEmbedding(selfieResult);
-    const docEmbedding = extractEmbedding(docResult);
+    try {
+      const [selfieResult, docResult] = await Promise.all([
+        human.detect(selfieTensor),
+        human.detect(documentTensor),
+      ]);
 
-    if (!selfieEmbedding || !docEmbedding) {
-      return { modelLoaded: true, error: 'Could not detect a face in one or both images' };
+      const selfieEmbedding = extractEmbedding(selfieResult);
+      const docEmbedding = extractEmbedding(docResult);
+
+      if (!selfieEmbedding || !docEmbedding) {
+        return { modelLoaded: true, error: 'Could not detect a face in one or both images' };
+      }
+
+      const similarity = cosineSimilarity(selfieEmbedding, docEmbedding);
+      return { modelLoaded: true, similarity, matched: similarity >= env.FACE_MATCH_THRESHOLD };
+    } finally {
+      selfieTensor.dispose();
+      documentTensor.dispose();
     }
-
-    const similarity = cosineSimilarity(selfieEmbedding, docEmbedding);
-    return { modelLoaded: true, similarity, matched: similarity >= env.FACE_MATCH_THRESHOLD };
   } catch (error) {
     logger.error('Face match failed', { error });
     return { modelLoaded: false, error: (error as Error).message };
   }
+}
+
+/**
+ * Decodes a JPEG/PNG buffer into a `tf.Tensor3D` ([height, width, 3], int32).
+ * The WASM build only accepts a Tensor, not a raw Buffer.
+ */
+function bufferToTensor(buffer: Buffer): any {
+  // Lazy-require tfjs so tests (FACE_MATCH_ENABLED=false) never load it.
+  const tf = nodeRequire('@tensorflow/tfjs') as any;
+
+  // JPEG
+  if (buffer.length > 2 && buffer[0] === 0xff && buffer[1] === 0xd8) {
+    const raw = jpeg.decode(buffer, { useTArray: true, formatAsRGBA: false });
+    return tf.tensor3d(new Uint8Array(raw.data), [raw.height, raw.width, 3], 'int32');
+  }
+
+  // PNG
+  if (
+    buffer.length > 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47
+  ) {
+    const png = PNG.sync.read(buffer);
+    const rgb = new Uint8Array(png.width * png.height * 3);
+    for (let i = 0, j = 0; i < png.data.length; i += 4, j += 3) {
+      rgb[j] = png.data[i];
+      rgb[j + 1] = png.data[i + 1];
+      rgb[j + 2] = png.data[i + 2];
+    }
+    return tf.tensor3d(rgb, [png.height, png.width, 3], 'int32');
+  }
+
+  throw new Error('Unsupported image format for face match');
 }
 
 function extractEmbedding(result: any): Float32Array | null {
