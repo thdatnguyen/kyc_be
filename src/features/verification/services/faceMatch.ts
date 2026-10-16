@@ -8,16 +8,15 @@ type HumanInstance = any;
 let humanPromise: Promise<HumanInstance> | null = null;
 
 /**
- * Lazily load and cache the Human (TensorFlow.js) model. Models download on
- * first use from the Human model CDN. Any failure here is caught by
- * `compareFaces` and degrades to NEEDS_REVIEW — never a hard crash.
+ * Lazily load and cache the Human model. Uses Wasm/CPU backend for cross-platform
+ * container compatibility (e.g. Railway) without native C++ binary crashes.
  */
 async function getHuman(): Promise<HumanInstance> {
   if (!humanPromise) {
     humanPromise = (async () => {
       const { Human } = await import('@vladmandic/human');
       const config = {
-        backend: 'tensorflow' as const,
+        backend: 'wasm' as const,
         modelBasePath: 'https://vladmandic.github.io/human-models/models/',
         debug: false,
         async: false,
