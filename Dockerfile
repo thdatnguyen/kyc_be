@@ -20,9 +20,9 @@ RUN groupadd --system --gid 1001 appgroup \
 
 WORKDIR /app
 
-# Install production deps only (re-fetches the tfjs-node prebuilt binary for linux).
-COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+# Copy node_modules from the build stage — guarantees the tfjs-node native
+# binary matches the platform (a second `npm ci` can fetch the wrong arch).
+COPY --from=build /app/node_modules ./node_modules
 
 COPY --from=build /app/dist ./dist
 

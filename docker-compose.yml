@@ -19,6 +19,9 @@ services:
 
   api:
     build: .
+    # tfjs-node ships a reliable x86-64 native binary; run amd64 (Rosetta 2 on
+    # Apple Silicon) so the TensorFlow binding loads.
+    platform: linux/amd64
     container_name: kyc-api
     ports:
       # Host 5001 -> container 5000 (macOS ControlCenter occupies host port 5000).
