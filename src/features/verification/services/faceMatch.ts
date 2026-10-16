@@ -1,3 +1,5 @@
+import { createRequire } from 'module';
+import path from 'path';
 import { env } from '@core/config/env';
 import { logger } from '@core/config/logger';
 import { FaceMatchResult } from '@features/applications/types';
@@ -7,16 +9,30 @@ type HumanInstance = any;
 
 let humanPromise: Promise<HumanInstance> | null = null;
 
+// The `@vladmandic/human` `exports` map doesn't expose the `.js` subpaths, so
+// resolve the Node+WASM build by its on-disk path (bypasses exports resolution).
+// This avoids the native `tfjs-node` binding that segfaults on Railway / Apple Silicon.
+const nodeRequire = createRequire(__filename);
+const humanWasmPath = path.join(
+  path.dirname(nodeRequire.resolve('@vladmandic/human')),
+  'human.node-wasm.js',
+);
+// Local path to the WASM backend's `.wasm` binaries (read from disk, not CDN).
+const wasmPath = path.dirname(nodeRequire.resolve('@tensorflow/tfjs-backend-wasm')) + path.sep;
+
 /**
- * Lazily load and cache the Human model. Uses Wasm/CPU backend for cross-platform
- * container compatibility (e.g. Railway) without native C++ binary crashes.
+ * Lazily load and cache the Human model. Uses the Node+WASM build
+ * (`human.node-wasm.js`) so there is NO native C++ binary — this avoids the
+ * tfjs-node segfault/arch-mismatch that crashes containers on Railway and
+ * Apple Silicon. Falls back to graceful NEEDS_REVIEW if it can't initialise.
  */
 async function getHuman(): Promise<HumanInstance> {
   if (!humanPromise) {
     humanPromise = (async () => {
-      const { Human } = await import('@vladmandic/human');
+      const { Human } = await import(humanWasmPath);
       const config = {
         backend: 'wasm' as const,
+        wasmPath: wasmPath,
         modelBasePath: 'https://vladmandic.github.io/human-models/models/',
         debug: false,
         async: false,
